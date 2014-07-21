@@ -28,11 +28,36 @@ class AuthorList
     @authors << author
   end
 
+  def sort!
+    @authors.sort! do |x,y|
+      y.lines_added <=> x.lines_added
+    end
+  end
+
   def get(name)
     @authors.each do |author|
       return author if author.name == name
     end
     return nil
+  end
+
+  def print_top(num,file)
+    File.open(file,'w') do |f|
+      f.write "<html><body>\n"
+      f.write "<table>\n"
+      @authors[0..num-1].each do |author|
+        f.write "<tr>"
+        f.write "<td>"
+        f.write "#{author.name}"
+        f.write "</td>"
+        f.write "<td>"
+        f.write "#{author.lines_added}"
+        f.write "</td>"
+        f.write "</tr>\n"
+      end
+      f.write "</table>\n"
+      f.write "</body></html>\n"
+    end
   end
 end
 
@@ -46,14 +71,15 @@ path = ARGV.pop
 
 raise "No repository specified" unless path
 
+commits = []
+author_list = AuthorList.new
 # change directory to git repository
 Dir.chdir(path) do
-  commits = []
-  author_list = AuthorList.new
+
   system "git status"
 
   # collect all commits (on the current branch)
-  output = `git --no-pager log --pretty="tformat:%H %an"`
+  output = `git --no-pager log -500 --pretty="tformat:%H %an"`
   output.split("\n").each do |line|
     splitted = line.split (" ")
     id = splitted[0]
@@ -63,6 +89,8 @@ Dir.chdir(path) do
     # add author to the list of authors as long as it is not already present
     author_list.add(Author.new(author)) unless author_list.get(author)
   end
+
+  print "Analayzing #{commits.size} commits.\n"
 
   # loop over all commits and add the shortstats to the authors
   commits.each do |commit|
@@ -85,8 +113,10 @@ Dir.chdir(path) do
     author_list.get(commit.author).lines_removed += removed
   end
 
-  p commits
-  p author_list
+
+  
 
   #changes = `git --no-pager log --pretty="tformat:commit:%H %an" --numstat`
 end
+  author_list.sort!
+  author_list.print_top(10,"charts.html")
