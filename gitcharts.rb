@@ -73,13 +73,15 @@ raise "No repository specified" unless path
 
 commits = []
 author_list = AuthorList.new
+histogram = Array.new(100,0)
+
 # change directory to git repository
 Dir.chdir(path) do
 
   system "git status"
 
   # collect all commits (on the current branch)
-  output = `git --no-pager log -500 --pretty="tformat:%H %an"`
+  output = `git --no-pager log -1000 --pretty="tformat:%H %an"`
   output.split("\n").each do |line|
     splitted = line.split (" ")
     id = splitted[0]
@@ -94,8 +96,15 @@ Dir.chdir(path) do
 
   # loop over all commits and add the shortstats to the authors
   commits.each do |commit|
-    cmd = "git --no-pager log  -1 --oneline --shortstat #{commit.id}"
+    cmd = "git --no-pager log  -1 --format=format:%at --shortstat #{commit.id}"
     output = `#{cmd}`
+
+    time_stamp = output.split("\n")[0].to_i
+    author_time = Time.at(time_stamp)
+    difference = (Time.now - author_time)/(1000.0*60*24)
+
+    days = difference.to_i
+
     stat_line = output.split("\n")[1]
     added = 0
     removed = 0
@@ -107,8 +116,13 @@ Dir.chdir(path) do
 
       removed = splitted[2].split(" ")[0] if splitted.length > 2
       removed = removed.to_i
+
+      if (days < 100)
+      	histogram[99-days] += added
+      end
     end
     
+
     author_list.get(commit.author).lines_added += added
     author_list.get(commit.author).lines_removed += removed
   end
@@ -118,5 +132,6 @@ Dir.chdir(path) do
 
   #changes = `git --no-pager log --pretty="tformat:commit:%H %an" --numstat`
 end
+  p histogram
   author_list.sort!
   author_list.print_top(10,"charts.html")
